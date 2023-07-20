@@ -1,0 +1,12 @@
+﻿.button {
+    float: right;
+}
+
+i {
+    cursor:pointer;
+}
+
+i:is(:hover) {
+    background-color: aqua;
+    color: blue;
+}

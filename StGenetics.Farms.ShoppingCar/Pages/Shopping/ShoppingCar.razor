@@ -1,0 +1,128 @@
+﻿@page "/shoppingcar"
+@using System.Globalization;
+@using StGenetics.Farms.ShoppingCar.Utils;
+
+<h3>ShoppingCar</h3>
+
+@if (animals.Count <= 0)
+{
+    <SurveyPrompt Title="You don't have animal in your list, please select first some animal for began to bill" />
+    <NavLink href="/farm" class="btn btn-primary">Back To Farm</NavLink>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Bred</th>
+                    <th>Id</th>
+                    <th>Name</th>
+                    <th>Gender</th>
+                    <th>BrthDate</th>
+                    <th>Price</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var group in groupedData)
+                {
+                    <tr>
+                        <td colspan="3"><strong>@group.Key</strong></td>
+                    </tr>
+                    @foreach (var item in group)
+                    {
+                        <tr>
+                            <td></td>
+                            <td>@item.Id</td>
+                            <td>@item.Name</td>
+                            <td>@item.Gender</td>
+                            <td>@item.BirthDate.ToShortDateString()</td>
+                            <td>@item.Price.ToString("C", CultureInfo.CreateSpecificCulture("en-US"))</td>
+                            <td>@item.Status</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+
+        </table>
+    </div>
+
+    <div class="resume">
+        <div class="item">
+            <div class="item-name">GrossValue</div>
+            <div class="item-value">@grossValue.ToString("C", CultureInfo.CreateSpecificCulture(ClassUtils.CURRENCY_FORMAT))</div>
+        </div>
+        <div class="item">
+            <div class="item-name">Disccount By Gender</div>
+            <div class="item-value">@disccountByGender.ToString("C", CultureInfo.CreateSpecificCulture(ClassUtils.CURRENCY_FORMAT))</div>
+        </div>
+        <div class="item">
+            <div class="item-name">Disccount By Quantity</div>
+            <div class="item-value">@disccountByQuantity.ToString("C", CultureInfo.CreateSpecificCulture(ClassUtils.CURRENCY_FORMAT))</div>
+        </div>
+        <div class="item">
+            <div class="item-name">Freight</div>
+            <div class="item-value">@freighValue.ToString("C", CultureInfo.CreateSpecificCulture(ClassUtils.CURRENCY_FORMAT))</div>
+        </div>
+        <div class="item total">
+            <div class="item-name">Total</div>
+            <div class="item-value">@totalValue.ToString("C", CultureInfo.CreateSpecificCulture(ClassUtils.CURRENCY_FORMAT))</div>
+        </div>
+    </div>
+}
+
+
+@code {
+    [Inject] 
+    public IDataTransferService<Animal> DataTransferService { get; set; }
+
+    private List<Animal> animals = new();
+    private IEnumerable<IGrouping<string, Animal>> groupedData;
+
+    private decimal grossValue = 0;
+    private decimal disccountByQuantity = 0;
+    private decimal disccountByGender = 0;
+    private decimal freighValue = 0;
+    private decimal totalValue = 0;
+
+    protected override void OnInitialized()
+    {
+        // Group the data by the Category field
+        animals = DataTransferService.DataList;
+        groupedData = animals.GroupBy(item => item.Bred);
+
+        grossValue = animals.Sum(a => a.Price);
+        disccountByQuantity = animals.Count > 10 ? grossValue * 5 / 100 : 0;
+        disccountByGender = CalculateDisccount();
+        freighValue = animals.Count > 20 ? 0 : 1000;
+        // Total
+        totalValue = grossValue - disccountByGender - disccountByQuantity + freighValue;
+    }
+
+    /// <summary>
+    /// This business rule is not clear, In this case I applied discount if there are more than 5 animals of the same gender
+    /// </summary>
+    /// <returns></returns>
+    private decimal CalculateDisccount()
+    {
+        decimal totalDisccount = 0;
+        if(animals.Where(item => item.Gender == Gender.Male).Count() > 5)
+        {
+            foreach (var item in animals)
+            {
+                totalDisccount += item.Price * 3 / 100;
+            }
+        }
+
+        if (animals.Where(item => item.Gender == Gender.Female).Count() > 5)
+        {
+            foreach (var item in animals)
+            {
+                totalDisccount += item.Price * 3 / 100;
+            }
+        }
+
+        return totalDisccount;
+    }
+}

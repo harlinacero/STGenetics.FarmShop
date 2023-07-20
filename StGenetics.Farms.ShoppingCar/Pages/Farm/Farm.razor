@@ -1,0 +1,174 @@
+﻿@page "/farm"
+@using System.Globalization;
+@using StGenetics.Farms.ShoppingCar.Utils;
+@using static StGenetics.Farms.ShoppingCar.Utils.ClassUtils;
+@inject IToastService toastService
+@inject IService<Animal> animalService
+
+<h3>Farm</h3>
+<EditForm Model="@animal" OnSubmit="@Save">
+    <div class="row">
+        <div class="col form-group">
+            <label for="filter" class="col-form-label">Filter</label>
+            <InputSelect id="filter" class="form-control"
+                         ValueExpression="@(()=>animal.Id)"
+                         Value="@animal.Id"
+                ValueChanged="@((int id) => UpdateCurrentAnimal(id))">
+                <option value="-1">...</option>
+                @foreach (var item in animals)
+                {
+                    <option value="@item.Id">@item.Name</option>
+                }
+            </InputSelect>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col form-group">
+            <label for="name" class="col-form-label">@nameof(Animal.Name)</label>
+            <InputText id="name" @bind-Value="animal.Name" required class="form-control" />
+        </div>
+        <div class="col form-group">
+            <label for="bred" class="col-form-label">@nameof(Animal.Bred)</label>
+            <InputText id="bred" @bind-Value="animal.Bred" required class="form-control" />
+        </div>
+    </div>
+    <div class="row">
+        <div class="col form-group">
+            <label for="gender" class="col-form-label">@nameof(Animal.Gender)</label>
+            <InputSelect id="gender" @bind-Value="animal.Gender" class="form-control">
+                @foreach (var item in Enum.GetValues(typeof(Gender)))
+                {
+                    <option value="@item">@item</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col form-group">
+            <label for="birthDate" class="col-form-label">@nameof(Animal.BirthDate)</label>
+            <InputDate id="birthDate" @bind-Value="animal.BirthDate" required class="form-control" />
+        </div>
+    </div>
+    <div class="row">
+        <div class="col form-group">
+            <label for="status" class="col-form-label">@nameof(Animal.Status)</label>
+            <InputSelect id="status" @bind-Value="animal.Status" class="form-control">
+                @foreach (var item in Enum.GetValues(typeof(Status)))
+                {
+                    <option value="@item">@item</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col form-group">
+            <label for="price" class="col-form-label">@nameof(Animal.Price)</label>
+            <InputNumber id="price" @bind-Value="animal.Price" required class="form-control" />
+        </div>
+    </div>
+    <br />
+    <div class="button">
+        <button class="btn btn-success" type="submit">Save</button>
+    </div>
+</EditForm>
+
+<DataGrid Items="animals" Columns="@columns"
+          OrderByDefault="@nameof(Animal.Id)"
+          ShowCheckboxColumn="true"
+          ShowPagination="true" PageSize="10"
+          ShowSumaryColumn="true" ColumnNameSumary="@nameof(Animal.Price)"
+          OnEditItem="EventCallback.Factory.Create<Animal>(this, UpdateAnimal)"
+          OnDeleteItem="EventCallback.Factory.Create<Animal>(this, RemoveAnimal)"
+          OnSelectedItemsChange="EventCallback.Factory.Create<Animal>(this, UpdateSelectedAnimals)">
+</DataGrid>
+<div class="button">
+    <button class="btn btn-success" @onclick="NavigateToShoppingCar">Go to car</button>
+</div>
+
+@code {
+    [Inject]
+    private NavigationManager NavigationManager { get; set; }
+    [Inject]
+    private IServiceProvider ServiceProvider { get; set; }
+
+    private List<Animal> animals = new();
+    private List<Animal> animalShops = new();
+    private Animal animal = new();
+
+    protected override void OnInitialized()
+    {
+        GetAllAnimals();
+    }
+
+
+    /// <summary>
+    /// Get All animals of service
+    /// </summary>
+    private void GetAllAnimals()
+    {
+        animals = animalService.GetAll().ToList();
+    }
+
+    private void UpdateCurrentAnimal(int id)
+    {
+        var index = animals.FindIndex(item => item.Id == id);
+        if (index == -1)
+        {
+            animal = new Animal();
+        }
+        else
+        {
+            animal = animals[index];
+        }
+    }
+
+    private async Task Save()
+    {
+        animalService.Save(animal);
+        toastService.ShowSuccess($"Animal was updated");
+        animal = new();
+        GetAllAnimals();
+        await Task.CompletedTask;
+    }
+
+    private async Task UpdateAnimal(Animal a)
+    {
+        animal = a;
+        await Task.CompletedTask;
+    }
+
+    private async Task RemoveAnimal(Animal animal)
+    {
+        animalService.Delete(animal.Id);
+        toastService.ShowSuccess($"Animal was deleted");
+        GetAllAnimals();
+        animal = new();
+        await Task.CompletedTask;
+    }
+
+    private async Task UpdateSelectedAnimals(Animal oAnimal)
+    {
+        animalService.Save(oAnimal);
+        GetAllAnimals();
+        animalShops = animals.Where(a => a.IsSelected).ToList();
+        await Task.CompletedTask;
+    }
+
+    private void NavigateToShoppingCar()
+    {
+        var dataTransferService = ServiceProvider.GetService<IDataTransferService<Animal>>();
+        dataTransferService.DataList = animalShops;
+
+        // Use navigation manager to navigate to the target page
+        NavigationManager.NavigateTo("/shoppingcar");
+    }
+
+    private List<GridColumn<Animal>> columns = new List<GridColumn<Animal>>
+    {
+        new GridColumn<Animal> { PropertyName = nameof(Animal.Id), DisplayName = nameof(Animal.Id), GetValue = p => p.Id },
+        new GridColumn<Animal> { PropertyName = nameof(Animal.Name), DisplayName =nameof(Animal.Name), GetValue = p => p.Name },
+        new GridColumn<Animal> { PropertyName = nameof(Animal.Bred), DisplayName = nameof(Animal.Bred), GetValue = p => p.Bred },
+        new GridColumn<Animal> { PropertyName = nameof(Animal.Gender), DisplayName = nameof(Animal.Gender), GetValue = p => p.Gender },
+        new GridColumn<Animal> { PropertyName = nameof(Animal.BirthDate), DisplayName = nameof(Animal.BirthDate),
+            GetValue = p => p.BirthDate.ToShortDateString() },
+        new GridColumn<Animal> { PropertyName = nameof(Animal.Price), DisplayName = nameof(Animal.Price),
+            GetValue = p => p.Price.ToString("C", CultureInfo.CreateSpecificCulture(ClassUtils.CURRENCY_FORMAT)) },
+        new GridColumn<Animal> { PropertyName = nameof(Animal.Status), DisplayName = nameof(Animal.Status), GetValue = p => p.Status }
+    };
+}

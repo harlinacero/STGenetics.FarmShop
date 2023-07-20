@@ -1,0 +1,47 @@
+﻿.table-striped {
+    width: 100%;
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th, td {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+/* Add a media query to adjust the table layout for smaller screens */
+@media screen and (max-width: 768px) {
+    th, td {
+        font-size: 14px; /* Adjust the font size for smaller screens */
+    }
+}
+
+.resume {
+    float: right;
+    padding: 0.5em;
+    border: 1px solid;
+    width: 50%;
+}
+
+.item {
+    display: flex;
+    justify-content: space-between;
+}
+
+.item-name {
+    text-align: left;
+    font-weight: 700;
+}
+
+.item-value {
+    text-align: right;
+}
+
+.total {
+    font-weight: bold;
+}

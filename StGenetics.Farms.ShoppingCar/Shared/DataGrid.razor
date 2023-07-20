@@ -1,0 +1,234 @@
+﻿@using StGenetics.Farms.ShoppingCar.Utils;
+@using System.Reflection;
+@using System.Globalization;
+@using static StGenetics.Farms.ShoppingCar.Utils.ClassUtils;
+
+@typeparam TItem where TItem : ISelectable
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            @if (ShowCheckboxColumn)
+            {
+                <th></th>
+            }
+            @foreach (var column in Columns)
+            {
+                <th @onclick="() => SortByProperty(column.PropertyName)">
+                    @column.DisplayName
+                    @if (SortColumn == column.PropertyName)
+                    {
+                        @if (SortAscending)
+                        {
+                            <i class="fas fa-sort-up"></i>
+                        }
+                        else
+                        {
+                            <i class="fas fa-sort-down"></i>
+                        }
+                    }
+                </th>
+            }
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in GetVisibleItems())
+        {
+            <tr>
+                @if (ShowCheckboxColumn)
+                {
+                    <td>
+                        <input type="checkbox" @bind="item.IsSelected" @onclick="() => UpdateSelect(item)" />
+                    </td>
+                }
+                @foreach (var column in Columns)
+                {
+                    <td>@column.GetValue(item)</td>
+                }
+                <td>
+                    <button @onclick="() => EditItem(item)"><i class="fa-solid fa-pen-to-square"></i></button>
+                    <button @onclick="() => DeleteItem(item)"><i class="fa-solid fa-trash"></i></button>
+                </td>
+            </tr>
+        }
+    </tbody>
+    @if (ShowSumaryColumn)
+    {
+        <tfoot>
+            <tr>
+                @if (ShowCheckboxColumn)
+                {
+                    <td></td>
+                }
+                @foreach (var column in Columns)
+                {
+                    <td>@GetValueSum(column)</td>
+                }
+            </tr>
+        </tfoot>
+    }
+</table>
+
+@if (ShowPagination)
+{
+    <ul class="pagination">
+        <li>
+            <button class="page-link" disabled="@isFirstPage" @onclick="GoToPreviousPage">Previous</button>
+        </li>
+        @for (int i = 0; i < totalPages; i++)
+        {
+            <li class="page-item @(i == currentPage ? "active" : "")">
+                <button class="page-link" @onclick="() => ChangePage(i)">@i</button>
+            </li>
+        }
+        <li>
+            <button class="page-link" disabled="@isLastPage" @onclick="GoToNextPage">Next</button>
+        </li>
+    </ul>
+}
+
+@code {
+    [Parameter]
+    public List<TItem> Items { get; set; }
+
+    [Parameter]
+    public List<GridColumn<TItem>> Columns { get; set; }
+    [Parameter]
+    public string OrderByDefault { get; set; }
+    [Parameter]
+    public bool ShowCheckboxColumn { get; set; } = true;
+
+    [Parameter]
+    public bool ShowPagination { get; set; } = true;
+    [Parameter]
+    public int PageSize { get; set; }
+    [Parameter]
+    public bool ShowSumaryColumn { get; set; } = false;
+    [Parameter]
+    public string ColumnNameSumary { get; set; }
+    [Parameter]
+    public EventCallback<TItem> OnEditItem { get; set; }
+    [Parameter]
+    public EventCallback<TItem> OnDeleteItem { get; set; }
+    [Parameter]
+    public EventCallback<TItem> OnSelectedItemsChange { get; set; }
+
+    //private List<TItem> SortedItems = new List<TItem>();
+    private string SortColumn = "";
+    private bool SortAscending = true;
+    private int currentPage = 0;
+    private int totalPages = 0;
+    private bool isFirstPage => currentPage == 1;
+    private bool isLastPage => currentPage == totalPages;
+
+    protected override void OnInitialized()
+    {
+        SortByProperty(OrderByDefault);
+        totalPages = (int)Math.Ceiling((double)Items.Count / PageSize);
+        base.OnInitialized();
+    }
+
+    protected override void OnParametersSet()
+    {
+        totalPages = (int)Math.Ceiling((double)Items.Count / PageSize);
+        base.OnParametersSet();
+    }
+
+
+    private IEnumerable<TItem> GetVisibleItems()
+    {
+        return Items.Skip((currentPage - 1) * PageSize).Take(PageSize);
+    }
+
+    private async Task UpdateSelect(TItem item)
+    {
+        item.IsSelected = !item.IsSelected;
+        await OnSelectedItemsChange.InvokeAsync(item);
+    }
+
+    private async Task EditItem(TItem item)
+    {
+        await OnEditItem.InvokeAsync(item);
+    }
+
+    private async Task DeleteItem(TItem item)
+    {
+        Items.Remove(item);
+        await OnDeleteItem.InvokeAsync(item);
+    }
+
+    private void SortByProperty(string property = null)
+    {
+        if (property != null && SortColumn == property)
+        {
+            SortAscending = !SortAscending;
+        }
+        else
+        {
+            SortColumn = property;
+            SortAscending = true;
+        }
+
+        if (SortAscending)
+        {
+            Items = Items.OrderBy(item => GetPropertyValue(item, SortColumn)).ToList();
+        }
+        else
+        {
+            Items = Items.OrderByDescending(item => GetPropertyValue(item, SortColumn)).ToList();
+        }
+    }
+
+
+    private object GetPropertyValue(TItem item, string propertyName)
+    {
+        return typeof(TItem).GetProperty(propertyName)?.GetValue(item, null);
+    }
+
+
+    private void ChangePage(int page)
+    {
+        currentPage = page;
+    }
+
+    private void GoToPreviousPage()
+    {
+        if (!isFirstPage)
+        {
+            currentPage--;
+        }
+    }
+
+    private void GoToNextPage()
+    {
+        if (!isLastPage)
+        {
+            currentPage++;
+        }
+    }
+
+    private string GetValueSum(GridColumn<TItem> column)
+    {
+        if (column.PropertyName != ColumnNameSumary)
+        {
+            return string.Empty;
+        }
+
+        decimal total = 0;
+        foreach (var item in Items)
+        {
+            PropertyInfo propertyInfo = item.GetType().GetProperty(ColumnNameSumary);
+            if (propertyInfo != null && propertyInfo.PropertyType == typeof(decimal))
+            {
+                decimal amountValue = (decimal)propertyInfo.GetValue(item);
+                total += amountValue;
+            }
+        }
+
+        return total.ToString("C", CultureInfo.CreateSpecificCulture(ClassUtils.CURRENCY_FORMAT));
+    }
+
+
+}
+
